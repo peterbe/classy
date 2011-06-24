@@ -35,7 +35,7 @@ function trainer(key, text, user) {
   }]);
   var save_file = 'saved_classifiers/' + user + '.json';
   classifiers[user].save(save_file, function(err, cls) {
-    L(err);
+    if (err) console.log(err);
   });
   return user;
 }
