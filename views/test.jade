@@ -1,0 +1,23 @@
+!!! 5
+html(lang="en")
+  head
+    title Classy - anybody can train on anything
+    script(src='/js/jquery-1.6.1.min.js')
+    script(src='/js/poster.js')
+  body
+    h1 Classy - anybody can train on anything
+    #container
+        form(method="post")
+          fieldset
+            legend Get classy!
+            p
+              label(for="key") Key:
+                input(type="text", name="key", size=10, value=key)
+            p
+              label(for="user") User:
+                input(type="text", name="user", size=40, value=user)
+            p
+              label(for="text") Text:
+                textarea(name="text", rows=10, cols=80, style='width:100%')
+          p.buttons
+            input(type="submit", value="Train!")
