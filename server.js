@@ -1,3 +1,5 @@
+require.paths.unshift('vendor/natural/lib');
+
 var http = require('http')
   , url = require('url')
   , express = require('express')
@@ -5,8 +7,12 @@ var http = require('http')
   , utils = require('./utils')
   , natural = require('natural')
   , uuid = require('node-uuid')
+  , redis = require('redis')
 ;
 var L = utils.L;
+
+var BayesClassifier = natural.BayesClassifier.BayesClassifier;
+var functionify = natural.BayesClassifier.functionify;
 
 var app = express.createServer();
 app.configure(function(){
@@ -24,20 +30,55 @@ app.configure(function(){
 var classifiers = {};
 
 function trainer(key, text, user) {
+  var r = redis.createClient();
   if (!user)
     user = uuid();
   classifier = classifiers[user];
-  if (!classifier)
-    classifiers[user] = new natural.BayesClassifier();
-  classifiers[user].train([{
-    classification: key,
-    text: text
-  }]);
-  var save_file = 'saved_classifiers/' + user + '.json';
-  classifiers[user].save(save_file, function(err, cls) {
-    if (err) console.log(err);
-  });
+  if (!classifier) {
+    r.stream.on('connect', function() {
+      r.get('stream:' + user, function (err, data) {
+        classifier = new BayesClassifier();
+        data = JSON.parse(data);
+        if (data) {
+          BayesClassifier.load(data, function(err, classifier) {
+            classifier.train([{
+              classification: key,
+              text: text
+            }]);
+            _save_classifier(r, user, classifier);
+          });
+        } else {
+          classifier.train([{
+            classification: key,
+            text: text
+          }]);
+          _save_classifier(r, user, classifier);
+        }
+      });
+    });
+  } else {
+    classifier.train([{
+      classification: key,
+      text: text
+    }]);
+    _save_classifier(r, user, classifier);
+  }
   return user;
+}
+var assert = require('assert');
+
+BayesClassifier.load = function(data, callback, stemmer) {
+  functionify(data, stemmer);
+  if (callback)
+    callback(null, data);
+};
+
+
+function _save_classifier(r, user, classifier) {
+  r.set( 'stream:'+user, JSON.stringify( classifier ), function() {
+    //L(arguments);
+  } );
+
 }
 
 app.post('/train/key/:key/user/:user', function(req, res){
@@ -54,13 +95,22 @@ app.post('/train/key/:key', function(req, res){
 
 app.post('/guess/user/:user', function (req, res) {
   var text = req.body.text;
-  var classifier = classifiers[req.params.user];
-  if (!classifier) {
-    res.send('Error - not recognized user');
-  } else {
-    var key = classifier.classify(text);
-    res.send(key);
-  }
+  var r = redis.createClient();
+  var user = req.params.user;
+  r.stream.on('connect', function() {
+    r.get('stream:' + user, function (err, data) {
+      classifier = new BayesClassifier();
+      data = JSON.parse(data);
+      if (data) {
+        BayesClassifier.load(data, function(err, classifier) {
+          var key = classifier.classify(text);
+          res.send(key);
+        });
+      } else {
+        res.send('Error - not recognized user');
+      }
+    });
+  });
 });
 
 
