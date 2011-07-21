@@ -11,6 +11,7 @@ var http = require('http')
 ;
 var L = utils.L;
 
+
 var BayesClassifier = natural.BayesClassifier.BayesClassifier;
 var functionify = natural.BayesClassifier.functionify;
 
